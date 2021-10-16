@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
+import groovy.json.JsonOutput
 import physicalgraph.zigbee.clusters.iaszone.ZoneStatus
 
 metadata {
@@ -22,7 +23,7 @@ metadata {
 		capability "Contact Sensor"
 		capability "Refresh"
 		capability "Health Check"
-		//capability "Sensor"
+		capability "Sensor"
         fingerprint inClusters: "0000 0001 0003 0500", outClusters: "0003", manufacturer: "TUYATEC-ydcwf5m2", model: "RH3001", deviceJoinName: "Tuya Open/Closed Sensor"
 	}
 
@@ -118,22 +119,15 @@ private Map parseReportAttributeMessage(String description) {
 		map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
 	}
 	log.debug "Desc Map: $descMap"
-
+    Map resultMap = [:]
     if (descMap.cluster == "0001" && descMap.attrId == "0020") {
-		resultMap = getBatteryResult(Integer.parseInt(descMap.value, 16))
+		resultMap = getBatteryResult(zigbee.convertHexToInt(descMap.value))
+        log.debug "getBatteryResult result : ${resultMap}"
 	}
 
 	return resultMap
 }
 
-/*private Map parseCustomMessage(String description) {
-	Map resultMap = [:]
-	if (description?.startsWith('temperature: ')) {
-		def value = zigbee.parseHATemperatureValue(description, "temperature: ", getTemperatureScale())
-		resultMap = getTemperatureResult(value)
-	}
-	return resultMap
-}*/
 
 private Map parseIasMessage(String description) {
 	ZoneStatus zs = zigbee.parseZoneStatus(description)
@@ -143,7 +137,7 @@ private Map parseIasMessage(String description) {
 
 
 private Map getBatteryResult(rawValue) {
-	log.debug 'Battery'
+	log.debug "Battery ${rawValue}"
 	def linkText = getLinkText(device)
 
     def result = [:]
@@ -157,25 +151,13 @@ private Map getBatteryResult(rawValue) {
 		result.value = Math.min(100, roundedPct)
 		result.descriptionText = "${linkText} battery was ${result.value}%"
 		result.name = 'battery'
+        return result
+        //log.debug "${result}"
 	}
 
 	return result
 }
 
-/*private Map getTemperatureResult(value) {
-	log.debug 'TEMP'
-	def linkText = getLinkText(device)
-	if (tempOffset) {
-		value = new BigDecimal((value as float) + (tempOffset as float)).setScale(1, BigDecimal.ROUND_HALF_UP)
-	}
-	def descriptionText = "${linkText} was ${value}°${temperatureScale}"
-	return [
-		name: 'temperature',
-		value: value,
-		descriptionText: descriptionText,
-		unit: temperatureScale
-	]
-}*/
 
 private Map getContactResult(value) {
 	log.debug 'Contact Status'
@@ -207,7 +189,9 @@ def refresh()
 
 	return refreshCmds + zigbee.enrollResponse()
 }
-
+def installed() {
+    sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+}
 def configure() {
 	// Device-Watch allows 2 check-in misses from device
 	sendEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
@@ -223,7 +207,7 @@ def configure() {
         //"raw 0x500 {01 23 00 00 00}", "delay 200",
         //"send 0x${device.deviceNetworkId} 1 1", "delay 1500",
 	]
-    return enrollCmds + zigbee.batteryConfig() + zigbee.temperatureConfig(30, 300) + refresh() // send refresh cmds as part of config
+    return enrollCmds + zigbee.batteryConfig() + refresh() // send refresh cmds as part of config
 }
 
 private hex(value) {

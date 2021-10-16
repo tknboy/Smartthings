@@ -38,8 +38,8 @@ metadata
         fingerprint inClusters: "0000, 0001, 0006", outClusters: "0019", manufacturer: "_TYZB02_key8kk7r", model: "TS0043", deviceJoinName: "Zemismart Button", mnmn: "SmartThings", vid: "generic-4-button"
         fingerprint inClusters: "0000, 000A, 0001 0006", outClusters: "0019", manufacturer: "_TZ3000_bi6lpsew", model: "TS0043", deviceJoinName: "Zemismart Button", mnmn: "SmartThings", vid: "generic-4-button"
         fingerprint inClusters: "0000, 000A, 0001 0006", outClusters: "0019", manufacturer: "_TZ3000_vp6clf9d", model: "TS0044", deviceJoinName: "Zemismart Button", mnmn: "SmartThings", vid: "generic-4-button"
-        fingerprint inClusters: "0000,0001,0003,0004,0006,1000", outClusters: "0019,000A,0003,0004,0005,0006,0008,1000", manufacturer: "_TZ3000_xabckq1v", model: "TS004F", deviceJoinName: "Tuya Button", mnmn: "SmartThings", vid: "generic-4-button"
-        fingerprint inClusters: "0000,0003,0001", outClusters: "0006,0003", manufacturer: "eWeLink", model: "WB01", deviceJoinName: "Sonoff Button", mnmn: "SmartThings", vid: "generic-1-button"
+        fingerprint inClusters: "0000, 0001, 0003, 0004, 0006, 1000", outClusters: "0019, 000A, 0003, 0004, 0005, 0006, 0008, 1000", manufacturer: "_TZ3000_xabckq1v", model: "TS004F", deviceJoinName: "Tuya Button", mnmn: "SmartThings", vid: "generic-4-button"
+        fingerprint inClusters: "0000, 0003, 0001", outClusters: "0006, 0003", manufacturer: "eWeLink", model: "WB01", deviceJoinName: "Sonoff Button", mnmn: "SmartThings", vid: "generic-1-button"
     }
 
     tiles(scale: 2)
@@ -63,8 +63,8 @@ metadata
             state "default", action: "refresh.refresh", icon: "st.secondary.refresh"
         }
 
-        main(["battery"])
-        details(["battery","button", "refresh"])
+        //main(["battery"])
+        //details(["battery","button", "refresh"])
     }
 }
 
@@ -116,13 +116,13 @@ def parse(String description)
     //def descMap1 = zigbee.parseDescriptionAsMap(description)
 
 
-	log.debug "${zigbee.parse(description)}"
+	//log.debug "zigbee.parse: ${zigbee.parse(description)}\n\n"
     //log.debug "\n\n\n descMap: $descMap1 \n\n\n"
 
     if (event) //non-standard 
     {
         sendEvent(event)
-        log.debug "sendEvent $event"
+        //log.debug "sendEvent $event"
     }
     else 
     {
@@ -133,20 +133,21 @@ def parse(String description)
             if (descMap.clusterInt == 0x0001 && descMap.attrInt == getAttrid_Battery()) 
             {
             	event = getBatteryResult(zigbee.convertHexToInt(descMap.value))
+                //log.debug("Battery Result EVENT: ${event})")
             }
             else if (descMap.clusterInt == 0x0006 || descMap.clusterInt == 0x0008) 
             {
             	event = parseNonIasButtonMessage(descMap)
             }
-            if (descMap.clusterInt == zigbee.POWER_CONFIGURATION_CLUSTER && descMap.attrInt == getAttrid_Battery()) 
+            /*if (descMap.clusterInt == zigbee.POWER_CONFIGURATION_CLUSTER && descMap.attrInt == getAttrid_Battery()) 
             {
             	event = getBatteryEvent(zigbee.convertHexToInt(descMap.value))
-            }
+            */
         }
         def result = []
         if (event) 
         {
-            log.debug "Creating event: ${event}"
+            //log.debug "Creating event: ${event}"
             result = createEvent(event)
         } 
         else if (isBindingTableMessage(description))         
@@ -171,8 +172,8 @@ def parse(String description)
                 }
             }
         }
-        log.debug "table message? ${desscription}"
-        return result
+        //log.debug "table message? ${desscription}"
+        result
     }
     
 }
@@ -180,8 +181,8 @@ def parse(String description)
 private Map getBatteryResult(rawValue)
 {
     log.debug "getBatteryResult"
-    log.debug 'Battery'
-    def linkText = getLinkText(device)
+    //log.debug 'Battery'
+    //def linkText = getLinkText(device)
 
     def result = [:]
 
@@ -195,9 +196,10 @@ private Map getBatteryResult(rawValue)
         if(roundedPct <=0)
         roundedPct = 1
         result.value = Math.min(100, roundedPct)
-        result.descriptionText = "${linkText} battery was ${result.value}%"
-        result.name = 'battery'
+        result.descriptionText = "battery: ${result.value}%"
+        result.name = "battery"
     } 
+    return result
 }
 def getBatteryPercentageResult(rawValue)
 {
@@ -295,14 +297,18 @@ private sendButtonEvent(buttonNumber, buttonState)
         //log.debug "Child device $buttonNumber not found!"
     }
 }
-
+def ping() {
+refresh()
+}
 def refresh() 
 {
+    log.debug("SSSSSSSSSSSSSSSSSSSSS")
     log.debug "Refreshing Battery"
     updated()
+    zigbee.onOffRefresh() + zigbee.onOffConfig()
     def tmp = zigbee.readAttribute(zigbee.POWER_CONFIGURATION_CLUSTER, getAttrid_Battery()) + zigbee.enrollResponse()
     log.debug "${tmp}"
-    return tmp
+    tmp
 }
 
 def configure() 
@@ -330,7 +336,7 @@ private void createChildButtonDevices(numberOfButtons)
     {
         log.debug "Creating child $i"
         def child = addChildDevice("smartthings", "Child Button", "${device.deviceNetworkId}:${i}", device.hubId,[completedSetup: true, label: getButtonName(i),
-        isComponent: true, componentName: "button$i", componentLabel: "buttton ${i}"])
+            isComponent: true, componentName: "button$i", componentLabel: "buttton ${i}"])
         
         def buttonValue = ["pushed","double","held"]
         if(device.getDataValue("model") == "TS004F") {
@@ -350,11 +356,17 @@ private void createChildButtonDevices(numberOfButtons)
 def installed() 
 {
     log.debug "installed() called"
-    
     getChildDevices().each {
         deleteChildDevice(it.deviceNetworkId)
     }
     
+    if (device.getDataValue("model") == 'TS004F') {
+        // reference: https://github.com/Koenkk/zigbee2mqtt/discussions/7158
+        log.debug("Sending request to initialize TS004F in Scene Switch mode")
+        log.debug "${zigbee.writeAttribute(0x0006, 0x8004, 0x30, 0x00)}"
+        zigbee.writeAttribute(0x0006, 0x8004, 0x30, 0x00)
+        //state.lastButtonNumber = 0
+    }
     def numberOfButtons = getNumberOfButtons()
     createChildButtonDevices(numberOfButtons) //Todo
     //sendEvent(name: "numberOfButtons", value: numberOfButtons , displayed: false)
